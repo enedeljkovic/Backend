@@ -52,55 +52,113 @@ app.post('/api/v1/Users', async (req, res) => {
 app.post('/api/v1/recipes', async (req, res) => {
   const { name, ingredients, category } = req.body;
 
-  if (!name || !ingredients || !Array.isArray(ingredients)) {
-    return res.status(400).json({ message: 'Unesite naziv, listu sastojaka i (opcionalno) kategoriju.' });
+  if (!name || !ingredients || ingredients.length === 0 || !category) {
+    return res.status(400).json({ message: 'Morate unijeti ime, sastojke i kategoriju' });
   }
 
   try {
-    const query = 'INSERT INTO recipes (name, ingredients, category) VALUES ($1, $2, $3) RETURNING *';
-    const values = [name, ingredients, category || null];
+    const insertRecipeQuery = 'INSERT INTO recipes (name, ingredients, category) VALUES ($1, $2, $3) RETURNING *';
+    const newRecipe = await pool.query(insertRecipeQuery, [name, ingredients, category]);
 
-    const result = await pool.query(query, values);
-
-    res.status(201).json({
-      message: 'Recept uspješno dodan',
-      recipe: result.rows[0]
-    });
+    res.status(201).json({ message: 'Recept uspješno dodan', recipe: newRecipe.rows[0] });
   } catch (error) {
     console.error('Greška pri dodavanju recepta:', error);
-    res.status(500).json({ message: 'Greška na serveru' });
+    res.status(500).json({ message: 'Greška pri dodavanju recepta' });
   }
 });
+
 //
 
-
-
 let ingredients = [];
-app.post('/api/v1/ingredients', (req, res) => {
-  const { ingredientsList } = req.body;
-  if (!ingredientsList || ingredientsList.length === 0) {
-    return res.status(400).json({ message: 'Morate unijeti barem jedan sastojak' });
-  }
-  ingredients = ingredientsList;
-  res.status(200).json({ message: 'Sastojci uspješno uneseni', ingredients });
-});
-
-
 let recipes = [
   { id: 1, name: "Pasta", ingredients: ["pasta", "tomato sauce", "cheese"], category: "vegetarian" },
   { id: 2, name: "Pizza", ingredients: ["dough", "tomato sauce", "cheese"], category: "vegetarian" },
   { id: 3, name: "Salad", ingredients: ["lettuce", "tomato", "cheese"], category: "vegan" },
 ];
+
+app.post('/api/v1/ingredients', async (req, res) => {
+  const { ingredientsList } = req.body;
+
+  if (!ingredientsList || ingredientsList.length === 0) {
+    return res.status(400).json({ message: 'Morate unijeti barem jedan sastojak' });
+  }
+
+  try {
+    
+    const insertPromises = ingredientsList.map(async (ingredient) => {
+      const result = await pool.query(
+        'INSERT INTO ingredients (name) VALUES ($1) ON CONFLICT (name) DO NOTHING RETURNING *',
+        [ingredient]
+      );
+      return result.rows[0];
+    });
+
+    
+    const addedIngredients = await Promise.all(insertPromises);
+
+    res.status(200).json({ message: 'Sastojci uspješno uneseni', ingredients: addedIngredients });
+  } catch (error) {
+    console.error('Greška pri dodavanju sastojaka:', error);
+    res.status(500).json({ message: 'Greška pri dodavanju sastojaka' });
+  }
+});
+
+app.get('/api/v1/ingredients', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM ingredients');
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Nema pohranjenih sastojaka' });
+    }
+    res.status(200).json({ ingredients: result.rows });
+  } catch (error) {
+    console.error('Greška pri dohvaćanju sastojaka:', error);
+    res.status(500).json({ message: 'Greška pri dohvaćanju sastojaka' });
+  }
+});
+
+
 //
 app.get('/api/v1/recipes', async (req, res) => {
+  const { category, page = 1, limit = 5 } = req.query;
+  
   try {
-    const result = await pool.query('SELECT * FROM recipes');
-    res.status(200).json({ recipes: result.rows });
+    
+    let query = 'SELECT * FROM recipes';  
+    const values = [];
+
+    
+    if (category) {
+      query += ' WHERE category = $1';
+      values.push(category);
+    }
+
+   
+    const startIndex = (page - 1) * limit;
+    query += ` LIMIT $${values.length + 1} OFFSET $${values.length + 2}`;
+    values.push(limit, startIndex); 
+
+    
+    const result = await pool.query(query, values);
+
+    if (result.rows.length === 0) {
+      return res.status(200).json({ message: 'Nema recepata u bazi' });
+    }
+
+    
+    res.status(200).json({
+      recipes: result.rows,
+      totalRecipes: result.rows.length,
+      currentPage: page,
+      totalPages: Math.ceil(result.rows.length / limit),
+    });
   } catch (error) {
     console.error('Greška pri dohvaćanju recepata:', error);
     res.status(500).json({ message: 'Greška pri dohvaćanju recepata' });
   }
 });
+
+
+
 //
 
 
