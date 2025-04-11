@@ -91,22 +91,17 @@ let recipes = [
   { id: 2, name: "Pizza", ingredients: ["dough", "tomato sauce", "cheese"], category: "vegetarian" },
   { id: 3, name: "Salad", ingredients: ["lettuce", "tomato", "cheese"], category: "vegan" },
 ];
-
-app.get('/api/v1/recipes', (req, res) => {
-  if (ingredients.length === 0) {
-    return res.status(400).json({ message: 'Morate prvo unijeti sastojke' });
+//
+app.get('/api/v1/recipes', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM recipes');
+    res.status(200).json({ recipes: result.rows });
+  } catch (error) {
+    console.error('Greška pri dohvaćanju recepata:', error);
+    res.status(500).json({ message: 'Greška pri dohvaćanju recepata' });
   }
-
-  const matchingRecipes = recipes.filter((recipe) =>
-    recipe.ingredients.every((ingredient) => ingredients.includes(ingredient))
-  );
-
-  if (matchingRecipes.length === 0) {
-    return res.status(200).json({ message: 'Nema recepata koji odgovaraju vašim sastojcima' });
-  }
-
-  res.status(200).json({ recipes: matchingRecipes });
 });
+//
 
 
 let favoriteRecipes = [];
