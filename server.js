@@ -105,21 +105,42 @@ app.get('/api/v1/recipes', async (req, res) => {
 
 
 let favoriteRecipes = [];
-app.post('/api/v1/favorites', (req, res) => {
-  const { recipeId } = req.body;
+app.post('/api/v1/favorites', async (req, res) => {
+  const { userId, recipeId } = req.body;
 
-  const recipeExists = recipes.find((recipe) => recipe.id === recipeId);
-  if (!recipeExists) {
-    return res.status(404).json({ message: 'Recept s tim ID-om ne postoji' });
+  if (!userId || !recipeId) {
+    return res.status(400).json({ message: 'Nedostaje userId ili recipeId' });
   }
 
-  if (favoriteRecipes.includes(recipeId)) {
-    return res.status(400).json({ message: 'Ovaj recept je već u vašim omiljenima' });
-  }
+  try {
+   
+    const recipeCheck = await pool.query('SELECT * FROM recipes WHERE id = $1', [recipeId]);
+    if (recipeCheck.rows.length === 0) {
+      return res.status(404).json({ message: 'Recept s tim ID-om ne postoji' });
+    }
 
-  favoriteRecipes.push(recipeId);
-  res.status(200).json({ message: 'Recept je dodan u omiljene', favoriteRecipes });
+    
+    const favoriteCheck = await pool.query(
+      'SELECT * FROM favorite_recipes WHERE user_id = $1 AND recipe_id = $2',
+      [userId, recipeId]
+    );
+    if (favoriteCheck.rows.length > 0) {
+      return res.status(400).json({ message: 'Recept je već u omiljenima' });
+    }
+
+    
+    await pool.query(
+      'INSERT INTO favorite_recipes (user_id, recipe_id) VALUES ($1, $2)',
+      [userId, recipeId]
+    );
+
+    res.status(200).json({ message: 'Recept je dodan u omiljene' });
+  } catch (error) {
+    console.error('Greška pri dodavanju u omiljene:', error);
+    res.status(500).json({ message: 'Greška pri dodavanju u omiljene' });
+  }
 });
+
 
 
 let searchHistory = [];
@@ -147,6 +168,65 @@ app.get('/api/v1/history', (req, res) => {
 
   res.status(200).json({ searchHistory });
 });
+
+
+app.post('/api/v1/user/:userId/favorites', async (req, res) => {
+  const { userId } = req.params;  
+  const { recipeId } = req.body;  
+
+  try {
+    
+    const userQuery = 'SELECT * FROM users WHERE id = $1';
+    const userResult = await pool.query(userQuery, [userId]);
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Korisnik nije pronađen' });
+    }
+
+    
+    const recipeQuery = 'SELECT * FROM recipes WHERE id = $1';
+    const recipeResult = await pool.query(recipeQuery, [recipeId]);
+    if (recipeResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Recept nije pronađen' });
+    }
+
+    
+    const insertFavoriteQuery = 'INSERT INTO user_favorites (user_id, recipe_id) VALUES ($1, $2)';
+    await pool.query(insertFavoriteQuery, [userId, recipeId]);
+
+    
+    res.status(201).json({ message: 'Recept dodan u omiljene' });
+  } catch (error) {
+    console.error('Greška pri dodavanju u omiljene:', error);
+    res.status(500).json({ message: 'Greška pri dodavanju u omiljene' });
+  }
+});
+
+app.get('/api/v1/recipes/search', async (req, res) => {
+  const { query } = req.query;  
+
+  if (!query) {
+    return res.status(400).json({ message: 'Morate unijeti upit za pretragu' });
+  }
+
+  try {
+    const searchQuery = `
+      SELECT * FROM recipes
+      WHERE name ILIKE $1 OR category ILIKE $1 OR ingredients::text ILIKE $1
+    `;
+    const result = await pool.query(searchQuery, [`%${query}%`]);
+
+    if (result.rows.length === 0) {
+      return res.status(200).json({ message: 'Nema recepata koji odgovaraju vašem upitu' });
+    }
+
+    res.status(200).json({ recipes: result.rows });
+  } catch (error) {
+    console.error('Greška pri pretrazi recepata:', error);
+    res.status(500).json({ message: 'Greška pri pretrazi recepata' });
+  }
+});
+
+
 
 app.listen(port, () => {
   console.log(`Server pokrenut na http://localhost:${port}`);
