@@ -24,7 +24,7 @@ pool.connect()
   });
 
 
-app.post('/api/v1/users', async (req, res) => {
+app.post('/api/v1/Users', async (req, res) => {
   const { username, email, password } = req.body;
   
   if (!username || !email || !password) {
@@ -48,6 +48,32 @@ app.post('/api/v1/users', async (req, res) => {
     res.status(500).json({ message: 'Greška pri dodavanju korisnika' });
   }
 });
+//
+app.post('/api/v1/recipes', async (req, res) => {
+  const { name, ingredients, category } = req.body;
+
+  if (!name || !ingredients || !Array.isArray(ingredients)) {
+    return res.status(400).json({ message: 'Unesite naziv, listu sastojaka i (opcionalno) kategoriju.' });
+  }
+
+  try {
+    const query = 'INSERT INTO recipes (name, ingredients, category) VALUES ($1, $2, $3) RETURNING *';
+    const values = [name, ingredients, category || null];
+
+    const result = await pool.query(query, values);
+
+    res.status(201).json({
+      message: 'Recept uspješno dodan',
+      recipe: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Greška pri dodavanju recepta:', error);
+    res.status(500).json({ message: 'Greška na serveru' });
+  }
+});
+//
+
+
 
 let ingredients = [];
 app.post('/api/v1/ingredients', (req, res) => {
