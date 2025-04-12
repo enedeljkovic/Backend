@@ -1,9 +1,13 @@
 const express = require('express');
 const { Pool } = require('pg'); 
 const app = express();
+const bodyParser = require('body-parser');
+const cors = require('cors');
 const port = 3001;
 
 app.use(express.json());
+app.use(cors());
+app.use(bodyParser.json());
 
 
 const pool = new Pool({
@@ -14,6 +18,8 @@ const pool = new Pool({
   port: 5432, 
 });
 
+const usersRouter = require('./routes/users')(pool);
+app.use('/api/v1', usersRouter);
 
 pool.connect()
   .then(() => {
@@ -24,7 +30,7 @@ pool.connect()
   });
 
 
-app.post('/api/v1/Users', async (req, res) => {
+app.post('/api/v1/users', async (req, res) => {
   const { username, email, password } = req.body;
   
   if (!username || !email || !password) {
