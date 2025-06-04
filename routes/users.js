@@ -122,7 +122,7 @@ module.exports = (pool) => {
     }
   });
 
-  router.post('/profile/upload-avatar', authenticateToken, upload.single('avatar'), async (req, res) => {
+  router.post('/profile/upload-avatar', authenticateToken, upload.single('image'), async (req, res) => {
     const { userId } = req.user;
     const avatarPath = `/uploads/${req.file.filename}`;
 
@@ -147,6 +147,44 @@ module.exports = (pool) => {
       res.status(500).json({ message: 'Greška na serveru' });
     }
   });
+
+  router.get('/favorites/count', authenticateToken, async (req, res) => {
+    const { userId } = req.user;
+
+    try {
+      const result = await pool.query(
+        'SELECT COUNT(*) FROM favorite_recipes WHERE user_id = $1',
+        [userId]
+      );
+
+      res.status(200).json({ count: parseInt(result.rows[0].count) });
+    } catch (error) {
+      console.error('Greška pri dohvaćanju broja favorita:', error);
+      res.status(500).json({ message: 'Greška na serveru' });
+    }
+  });
+
+router.get('/search/last', authenticateToken, async (req, res) => {
+  const { userId } = req.user;
+
+  try {
+    const result = await pool.query(
+      'SELECT ingredients FROM search_history WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 1',
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(200).json({ lastSearch: null });
+    }
+
+    const ingredients = result.rows[0].ingredients.join(', ');
+    res.status(200).json({ lastSearch: ingredients });
+  } catch (error) {
+    console.error('Greška pri dohvaćanju zadnje pretrage:', error);
+    res.status(500).json({ message: 'Greška na serveru' });
+  }
+});
+
 
   return router;
 };
