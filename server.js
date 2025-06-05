@@ -73,23 +73,48 @@ app.post('/api/v1/users', async (req, res) => {
 });
 //
 app.post('/api/v1/recipes', recipeImageUpload.single('image'), async (req, res) => {
-  const { name, ingredients, category } = req.body;
+  const { name, ingredients, category, description } = req.body;
   const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
-  if (!name || !ingredients || !category) {
-    return res.status(400).json({ message: 'Morate unijeti ime, sastojke i kategoriju' });
+  if (!name || !ingredients || !category || !description) {
+    return res.status(400).json({ message: 'Morate unijeti ime, sastojke, kategoriju i opis' });
   }
 
   try {
-    const insertRecipeQuery = 'INSERT INTO recipes (name, ingredients, category, image_url) VALUES ($1, $2, $3, $4) RETURNING *';
-    const newRecipe = await pool.query(insertRecipeQuery, [name, ingredients, category, imageUrl]);
+    
+    let parsedIngredients = ingredients;
+    if (typeof ingredients === 'string') {
+      try {
+        parsedIngredients = JSON.parse(ingredients);
+        if (!Array.isArray(parsedIngredients)) throw new Error();
+      } catch {
+        return res.status(400).json({ message: 'Sastojci moraju biti u formatu niza (array)' });
+      }
+    }
 
-    res.status(201).json({ message: 'Recept uspješno dodan', recipe: newRecipe.rows[0] });
+    const insertRecipeQuery = `
+      INSERT INTO recipes (name, ingredients, category, description, image_url)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *`;
+
+    const newRecipe = await pool.query(insertRecipeQuery, [
+      name,
+      parsedIngredients,
+      category,
+      description,
+      imageUrl
+    ]);
+
+    res.status(201).json({
+      message: 'Recept uspješno dodan',
+      recipe: newRecipe.rows[0]
+    });
   } catch (error) {
     console.error('Greška pri dodavanju recepta:', error);
     res.status(500).json({ message: 'Greška pri dodavanju recepta' });
   }
 });
+
 
 //
 
