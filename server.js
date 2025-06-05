@@ -3,11 +3,28 @@ const { Pool } = require('pg');
 const app = express();
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const multer = require('multer');
+const path = require('path');
 const port = 3001;
 
 app.use(express.json());
 app.use(cors());
 app.use(bodyParser.json());
+
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+
+const recipeImageStorage = multer.diskStorage({
+  destination: 'uploads/',
+  filename: (req, file, cb) => {
+    const uniqueName = `recipe-${Date.now()}${path.extname(file.originalname)}`;
+    cb(null, uniqueName);
+  }
+});
+
+const recipeImageUpload = multer({ storage: recipeImageStorage });
+
+
 
 
 const pool = new Pool({
@@ -55,16 +72,17 @@ app.post('/api/v1/users', async (req, res) => {
   }
 });
 //
-app.post('/api/v1/recipes', async (req, res) => {
+app.post('/api/v1/recipes', recipeImageUpload.single('image'), async (req, res) => {
   const { name, ingredients, category } = req.body;
+  const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
-  if (!name || !ingredients || ingredients.length === 0 || !category) {
+  if (!name || !ingredients || !category) {
     return res.status(400).json({ message: 'Morate unijeti ime, sastojke i kategoriju' });
   }
 
   try {
-    const insertRecipeQuery = 'INSERT INTO recipes (name, ingredients, category) VALUES ($1, $2, $3) RETURNING *';
-    const newRecipe = await pool.query(insertRecipeQuery, [name, ingredients, category]);
+    const insertRecipeQuery = 'INSERT INTO recipes (name, ingredients, category, image_url) VALUES ($1, $2, $3, $4) RETURNING *';
+    const newRecipe = await pool.query(insertRecipeQuery, [name, ingredients, category, imageUrl]);
 
     res.status(201).json({ message: 'Recept uspješno dodan', recipe: newRecipe.rows[0] });
   } catch (error) {
@@ -165,7 +183,7 @@ app.get('/api/v1/recipes', async (req, res) => {
 
 
 
-//
+
 
 
 let favoriteRecipes = [];
