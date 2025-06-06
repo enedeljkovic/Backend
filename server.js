@@ -73,47 +73,34 @@ app.post('/api/v1/users', async (req, res) => {
 });
 //
 app.post('/api/v1/recipes', recipeImageUpload.single('image'), async (req, res) => {
-  const { name, ingredients, category, description } = req.body;
+  const { name, category } = req.body;
+  let ingredients = [];
+
+  try {
+    ingredients = JSON.parse(req.body.ingredients);
+  } catch (err) {
+    return res.status(400).json({ message: 'Neispravan format za sastojke' });
+  }
+
+  const formattedIngredients = `{${ingredients.map(i => `"${i}"`).join(',')}}`;
   const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
-  if (!name || !ingredients || !category || !description) {
-    return res.status(400).json({ message: 'Morate unijeti ime, sastojke, kategoriju i opis' });
+  if (!name || ingredients.length === 0 || !category) {
+    return res.status(400).json({ message: 'Morate unijeti ime, sastojke i kategoriju' });
   }
 
   try {
-    
-    let parsedIngredients = ingredients;
-    if (typeof ingredients === 'string') {
-      try {
-        parsedIngredients = JSON.parse(ingredients);
-        if (!Array.isArray(parsedIngredients)) throw new Error();
-      } catch {
-        return res.status(400).json({ message: 'Sastojci moraju biti u formatu niza (array)' });
-      }
-    }
+    const insertRecipeQuery = 'INSERT INTO recipes (name, ingredients, category, image_url) VALUES ($1, $2, $3, $4) RETURNING *';
+    const newRecipe = await pool.query(insertRecipeQuery, [name, formattedIngredients, category, imageUrl]);
 
-    const insertRecipeQuery = `
-      INSERT INTO recipes (name, ingredients, category, description, image_url)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING *`;
-
-    const newRecipe = await pool.query(insertRecipeQuery, [
-      name,
-      parsedIngredients,
-      category,
-      description,
-      imageUrl
-    ]);
-
-    res.status(201).json({
-      message: 'Recept uspješno dodan',
-      recipe: newRecipe.rows[0]
-    });
+    res.status(201).json({ message: 'Recept uspješno dodan', recipe: newRecipe.rows[0] });
   } catch (error) {
     console.error('Greška pri dodavanju recepta:', error);
     res.status(500).json({ message: 'Greška pri dodavanju recepta' });
   }
 });
+
+
 
 
 //
@@ -125,6 +112,25 @@ let recipes = [
   { id: 3, name: "Salad", ingredients: ["lettuce", "tomato", "cheese"], category: "vegan" },
 ];
 
+//
+app.get('/api/v1/recipes/:id', async (req, res) => {
+  const recipeId = req.params.id;
+
+  try {
+    const result = await pool.query('SELECT * FROM recipes WHERE id = $1', [recipeId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Recept nije pronađen' });
+    }
+
+    res.json({ recipe: result.rows[0] });
+  } catch (error) {
+    console.error('Greška pri dohvaćanju recepta:', error);
+    res.status(500).json({ message: 'Greška na serveru' });
+  }
+});
+
+//
 app.post('/api/v1/ingredients', async (req, res) => {
   const { ingredientsList } = req.body;
 
