@@ -282,19 +282,21 @@ app.get('/api/v1/user/:userId/favorites', async (req, res) => {
   const { userId } = req.params;
 
   try {
-    const query = `
-      SELECT r.* FROM recipes r
-      JOIN user_favorites uf ON r.id = uf.recipe_id
-      WHERE uf.user_id = $1
-    `;
-    const result = await pool.query(query, [userId]);
+    const result = await pool.query(
+      `SELECT r.*
+       FROM recipes r
+       JOIN user_favorites uf ON r.id = uf.recipe_id
+       WHERE uf.user_id = $1`,
+      [userId]
+    );
 
     res.status(200).json({ favorites: result.rows });
-  } catch (error) {
-    console.error('Greška pri dohvaćanju omiljenih recepata:', error);
-    res.status(500).json({ message: 'Greška pri dohvaćanju omiljenih recepata' });
+  } catch (err) {
+    console.error('Greška pri dohvaćanju omiljenih recepata:', err);
+    res.status(500).json({ message: 'Greška na serveru' });
   }
 });
+
 
 
 app.post('/api/v1/user/:userId/favorites', async (req, res) => {
@@ -337,6 +339,19 @@ app.post('/api/v1/user/:userId/favorites', async (req, res) => {
   } catch (error) {
     console.error('Greška pri dodavanju u omiljene:', error);
     res.status(500).json({ message: 'Greška pri dodavanju u omiljene' });
+  }
+});
+
+app.delete('/api/v1/user/:userId/favorites/:recipeId', async (req, res) => {
+  const { userId, recipeId } = req.params;
+
+  try {
+    const deleteQuery = 'DELETE FROM user_favorites WHERE user_id = $1 AND recipe_id = $2';
+    await pool.query(deleteQuery, [userId, recipeId]);
+    res.status(200).json({ message: 'Recept uklonjen iz omiljenih' });
+  } catch (err) {
+    console.error('Greška pri uklanjanju iz omiljenih:', err);
+    res.status(500).json({ message: 'Greška na serveru' });
   }
 });
 
