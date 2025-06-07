@@ -213,10 +213,6 @@ app.get('/api/v1/recipes', async (req, res) => {
 });
 
 
-
-
-
-
 let favoriteRecipes = [];
 app.post('/api/v1/favorites', async (req, res) => {
   const { userId, recipeId } = req.body;
@@ -282,37 +278,68 @@ app.get('/api/v1/history', (req, res) => {
   res.status(200).json({ searchHistory });
 });
 
+app.get('/api/v1/user/:userId/favorites', async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const query = `
+      SELECT r.* FROM recipes r
+      JOIN user_favorites uf ON r.id = uf.recipe_id
+      WHERE uf.user_id = $1
+    `;
+    const result = await pool.query(query, [userId]);
+
+    res.status(200).json({ favorites: result.rows });
+  } catch (error) {
+    console.error('Greška pri dohvaćanju omiljenih recepata:', error);
+    res.status(500).json({ message: 'Greška pri dohvaćanju omiljenih recepata' });
+  }
+});
+
 
 app.post('/api/v1/user/:userId/favorites', async (req, res) => {
   const { userId } = req.params;  
   const { recipeId } = req.body;  
 
+  if (!userId || !recipeId) {
+    return res.status(400).json({ message: 'Nedostaje userId ili recipeId' });
+  }
+
   try {
     
-    const userQuery = 'SELECT * FROM users WHERE id = $1';
-    const userResult = await pool.query(userQuery, [userId]);
+    const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
     if (userResult.rows.length === 0) {
       return res.status(404).json({ message: 'Korisnik nije pronađen' });
     }
 
     
-    const recipeQuery = 'SELECT * FROM recipes WHERE id = $1';
-    const recipeResult = await pool.query(recipeQuery, [recipeId]);
+    const recipeResult = await pool.query('SELECT * FROM recipes WHERE id = $1', [recipeId]);
     if (recipeResult.rows.length === 0) {
       return res.status(404).json({ message: 'Recept nije pronađen' });
     }
 
     
-    const insertFavoriteQuery = 'INSERT INTO user_favorites (user_id, recipe_id) VALUES ($1, $2)';
-    await pool.query(insertFavoriteQuery, [userId, recipeId]);
+    const favoriteCheck = await pool.query(
+      'SELECT * FROM user_favorites WHERE user_id = $1 AND recipe_id = $2',
+      [userId, recipeId]
+    );
+    if (favoriteCheck.rows.length > 0) {
+      return res.status(400).json({ message: 'Recept je već u omiljenima' });
+    }
 
     
+    await pool.query(
+      'INSERT INTO user_favorites (user_id, recipe_id) VALUES ($1, $2)',
+      [userId, recipeId]
+    );
+
     res.status(201).json({ message: 'Recept dodan u omiljene' });
   } catch (error) {
     console.error('Greška pri dodavanju u omiljene:', error);
     res.status(500).json({ message: 'Greška pri dodavanju u omiljene' });
   }
 });
+
 
 app.get('/api/v1/recipes/search', async (req, res) => {
   const { query } = req.query;  
@@ -339,6 +366,62 @@ app.get('/api/v1/recipes/search', async (req, res) => {
   }
 });
 
+
+app.post('/api/v1/recipes/:id/comments', async (req, res) => {
+  const recipeId = req.params.id;
+  const { content, rating } = req.body;
+
+  try {
+    const insertComment = 'INSERT INTO comments (recipe_id, content, rating) VALUES ($1, $2, $3) RETURNING *';
+    const result = await pool.query(insertComment, [recipeId, content, rating]);
+    res.status(201).json({ message: 'Komentar dodan', comment: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Greška pri dodavanju komentara' });
+  }
+});
+
+
+app.get('/api/v1/recipes/:id/comments', async (req, res) => {
+  const recipeId = req.params.id;
+
+  try {
+    const getComments = 'SELECT * FROM comments WHERE recipe_id = $1 ORDER BY created_at DESC';
+    const result = await pool.query(getComments, [recipeId]);
+    res.json({ comments: result.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Greška pri dohvaćanju komentara' });
+  }
+});
+
+app.put('/api/v1/recipes/:id', async (req, res) => {
+  const recipeId = req.params.id;
+  const { comments, ratings } = req.body;
+
+  try {
+    const updateQuery = `
+      UPDATE recipes
+      SET comments = $1, ratings = $2
+      WHERE id = $3
+      RETURNING *
+    `;
+    const result = await pool.query(updateQuery, [
+      JSON.stringify(comments || []),
+      JSON.stringify(ratings || []),
+      recipeId,
+    ]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: 'Recept nije pronađen.' });
+    }
+
+    res.json({ message: 'Recept ažuriran.', recipe: result.rows[0] });
+  } catch (error) {
+    console.error('Greška pri ažuriranju recepta:', error);
+    res.status(500).json({ message: 'Greška na serveru.' });
+  }
+});
 
 
 app.listen(port, () => {
