@@ -5,6 +5,7 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
+const authenticateToken = require('./middleware/auth');
 const port = 3001;
 
 app.use(express.json());
@@ -354,6 +355,24 @@ app.delete('/api/v1/user/:userId/favorites/:recipeId', async (req, res) => {
     res.status(500).json({ message: 'Greška na serveru' });
   }
 });
+
+app.get('/favorites/count', authenticateToken, async (req, res) => {
+  const userId = req.user.userId; 
+
+  try {
+    const result = await pool.query(
+      'SELECT COUNT(*) FROM user_favorites WHERE user_id = $1',
+      [userId]
+    );
+
+    res.status(200).json({ count: parseInt(result.rows[0].count) });
+  } catch (error) {
+    console.error('Greška pri dohvaćanju broja favorita:', error);
+    res.status(500).json({ message: 'Greška na serveru' });
+  }
+});
+
+
 
 
 app.get('/api/v1/recipes/search', async (req, res) => {
