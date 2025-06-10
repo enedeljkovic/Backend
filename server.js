@@ -12,6 +12,7 @@ app.use(express.json());
 app.use(cors());
 app.use(bodyParser.json());
 
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 
@@ -38,6 +39,8 @@ const pool = new Pool({
 
 const usersRouter = require('./routes/users')(pool);
 app.use('/api/v1', usersRouter);
+const adminRoutes = require('./routes/admin')(pool);
+app.use('/api/v1/admin', adminRoutes);
 
 pool.connect()
   .then(() => {
