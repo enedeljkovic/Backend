@@ -41,6 +41,11 @@ const usersRouter = require('./routes/users')(pool);
 app.use('/api/v1', usersRouter);
 const adminRoutes = require('./routes/admin')(pool);
 app.use('/api/v1/admin', adminRoutes);
+const favoritesRoutes = require('./routes/favorites');
+app.use('/api/v1', favoritesRoutes(pool));
+console.log("Favoriti rute učitane.");
+
+
 
 pool.connect()
   .then(() => {
@@ -217,45 +222,6 @@ app.get('/api/v1/recipes', async (req, res) => {
 });
 
 
-let favoriteRecipes = [];
-app.post('/api/v1/favorites', async (req, res) => {
-  const { userId, recipeId } = req.body;
-
-  if (!userId || !recipeId) {
-    return res.status(400).json({ message: 'Nedostaje userId ili recipeId' });
-  }
-
-  try {
-   
-    const recipeCheck = await pool.query('SELECT * FROM recipes WHERE id = $1', [recipeId]);
-    if (recipeCheck.rows.length === 0) {
-      return res.status(404).json({ message: 'Recept s tim ID-om ne postoji' });
-    }
-
-    
-    const favoriteCheck = await pool.query(
-      'SELECT * FROM favorite_recipes WHERE user_id = $1 AND recipe_id = $2',
-      [userId, recipeId]
-    );
-    if (favoriteCheck.rows.length > 0) {
-      return res.status(400).json({ message: 'Recept je već u omiljenima' });
-    }
-
-    
-    await pool.query(
-      'INSERT INTO favorite_recipes (user_id, recipe_id) VALUES ($1, $2)',
-      [userId, recipeId]
-    );
-
-    res.status(200).json({ message: 'Recept je dodan u omiljene' });
-  } catch (error) {
-    console.error('Greška pri dodavanju u omiljene:', error);
-    res.status(500).json({ message: 'Greška pri dodavanju u omiljene' });
-  }
-});
-
-
-
 let searchHistory = [];
 app.post('/api/v1/history', (req, res) => {
   const { ingredientsList } = req.body;
@@ -282,89 +248,14 @@ app.get('/api/v1/history', (req, res) => {
   res.status(200).json({ searchHistory });
 });
 
-app.get('/api/v1/user/:userId/favorites', async (req, res) => {
-  const { userId } = req.params;
 
-  try {
-    const result = await pool.query(
-      `SELECT r.*
-       FROM recipes r
-       JOIN user_favorites uf ON r.id = uf.recipe_id
-       WHERE uf.user_id = $1`,
-      [userId]
-    );
-
-    res.status(200).json({ favorites: result.rows });
-  } catch (err) {
-    console.error('Greška pri dohvaćanju omiljenih recepata:', err);
-    res.status(500).json({ message: 'Greška na serveru' });
-  }
-});
-
-
-
-app.post('/api/v1/user/:userId/favorites', async (req, res) => {
-  const { userId } = req.params;  
-  const { recipeId } = req.body;  
-
-  if (!userId || !recipeId) {
-    return res.status(400).json({ message: 'Nedostaje userId ili recipeId' });
-  }
-
-  try {
-    
-    const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ message: 'Korisnik nije pronađen' });
-    }
-
-    
-    const recipeResult = await pool.query('SELECT * FROM recipes WHERE id = $1', [recipeId]);
-    if (recipeResult.rows.length === 0) {
-      return res.status(404).json({ message: 'Recept nije pronađen' });
-    }
-
-    
-    const favoriteCheck = await pool.query(
-      'SELECT * FROM user_favorites WHERE user_id = $1 AND recipe_id = $2',
-      [userId, recipeId]
-    );
-    if (favoriteCheck.rows.length > 0) {
-      return res.status(400).json({ message: 'Recept je već u omiljenima' });
-    }
-
-    
-    await pool.query(
-      'INSERT INTO user_favorites (user_id, recipe_id) VALUES ($1, $2)',
-      [userId, recipeId]
-    );
-
-    res.status(201).json({ message: 'Recept dodan u omiljene' });
-  } catch (error) {
-    console.error('Greška pri dodavanju u omiljene:', error);
-    res.status(500).json({ message: 'Greška pri dodavanju u omiljene' });
-  }
-});
-
-app.delete('/api/v1/user/:userId/favorites/:recipeId', async (req, res) => {
-  const { userId, recipeId } = req.params;
-
-  try {
-    const deleteQuery = 'DELETE FROM user_favorites WHERE user_id = $1 AND recipe_id = $2';
-    await pool.query(deleteQuery, [userId, recipeId]);
-    res.status(200).json({ message: 'Recept uklonjen iz omiljenih' });
-  } catch (err) {
-    console.error('Greška pri uklanjanju iz omiljenih:', err);
-    res.status(500).json({ message: 'Greška na serveru' });
-  }
-});
 
 app.get('/favorites/count', authenticateToken, async (req, res) => {
   const userId = req.user.userId; 
 
   try {
     const result = await pool.query(
-      'SELECT COUNT(*) FROM user_favorites WHERE user_id = $1',
+      'SELECT COUNT(*) FROM user_favorites WHERE id = $1',
       [userId]
     );
 
