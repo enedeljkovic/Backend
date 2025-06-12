@@ -23,7 +23,7 @@ module.exports = (pool) => {
     }
 
     try {
-      const existingUser = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+      const existingUser = await pool.query('SELECT * FROM users WHERE email = $3', [email]);
       if (existingUser.rows.length > 0) {
         return res.status(400).json({ message: 'Korisnik s tim emailom već postoji' });
       }
@@ -139,7 +139,7 @@ module.exports = (pool) => {
     const { userId } = req.user;
 
     try {
-      await pool.query('DELETE FROM user_favorites WHERE user_id = $1', [userId]);
+      await pool.query('DELETE FROM user_favorites WHERE id = $1', [userId]);
       await pool.query('DELETE FROM users WHERE id = $1', [userId]);
       res.status(200).json({ message: 'Račun je obrisan' });
     } catch (error) {
@@ -169,7 +169,7 @@ router.get('/search/last', authenticateToken, async (req, res) => {
 
   try {
     const result = await pool.query(
-      'SELECT ingredients FROM search_history WHERE user_id = $1 ORDER BY timestamp DESC LIMIT 1',
+      'SELECT ingredients FROM search_history WHERE id = $1 ORDER BY timestamp DESC LIMIT 1',
       [userId]
     );
 
@@ -189,9 +189,10 @@ router.get('/substitutes/:ingredient', async (req, res) => {
   const { ingredient } = req.params;
   try {
     const result = await pool.query(
-      'SELECT substitute FROM ingredient_substitutes WHERE ingredient = $1',
-      [ingredient.toLowerCase()]
-    );
+  'SELECT substitute FROM ingredient_substitute WHERE unaccent(lower(ingredient)) = unaccent(lower($1))',
+  [ingredient]
+);
+
     const substitutes = result.rows.map(row => row.substitute);
     res.json({ substitutes });
   } catch (err) {
@@ -199,6 +200,7 @@ router.get('/substitutes/:ingredient', async (req, res) => {
     res.status(500).json({ message: 'Greška na serveru' });
   }
 });
+
 
   return router;
 };
