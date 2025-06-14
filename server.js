@@ -30,12 +30,16 @@ const recipeImageUpload = multer({ storage: recipeImageStorage });
 
 
 const pool = new Pool({
-  user: 'postgres', 
-  host: 'localhost', 
-  database: 'InstaRecipe', 
-  password: 'fdg5ahee', 
-  port: 5432, 
+  user: 'instarecipe_sql_user',
+  host: 'dpg-d16od9h5pdvs73fio9gg-a.oregon-postgres.render.com',
+  database: 'instarecipe_sql',
+  password: 'XbvkgQaulCambweWCjLyFskMnCtAWLof',
+  port: 5432,
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
+
 
 const usersRouter = require('./routes/users')(pool);
 app.use('/api/v1', usersRouter);
