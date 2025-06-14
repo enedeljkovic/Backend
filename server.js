@@ -251,11 +251,12 @@ app.get('/api/v1/history', (req, res) => {
 
 
 app.get('/favorites/count', authenticateToken, async (req, res) => {
+  console.log('req.user:', req.user); 
   const userId = req.user.userId; 
 
   try {
     const result = await pool.query(
-      'SELECT COUNT(*) FROM user_favorites WHERE id = $1',
+      'SELECT COUNT(*) FROM user_favorites WHERE user_id = $1',
       [userId]
     );
 
