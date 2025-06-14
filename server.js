@@ -8,6 +8,12 @@ const path = require('path');
 const authenticateToken = require('./middleware/auth');
 const port = 3001;
 
+app.use(cors({
+  origin: 'https://instarecipe1.netlify.app',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: false
+}));
+
 app.use(express.json());
 app.use(cors());
 app.use(bodyParser.json());
