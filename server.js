@@ -6,7 +6,8 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const authenticateToken = require('./middleware/auth');
-const port = 3001;
+const port = process.env.PORT || 3001;
+
 
 app.use(cors({
   origin: 'https://instarecipe1.netlify.app',
